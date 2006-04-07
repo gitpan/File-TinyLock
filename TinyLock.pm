@@ -1,39 +1,39 @@
-# File::Lock.pm
-# $Id: Lock.pm,v 0.10 2006/04/06 16:53:32 jkister Exp $
+# File::TinyLock.pm
+# $Id: TinyLock.pm,v 0.11 2006/04/06 16:53:32 jkister Exp $
 # Copyright (c) 2006 Jeremy Kister.
 # Released under Perl's Artistic License.
 
-$File::Lock::VERSION = "0.10";
+$File::TinyLock::VERSION = "0.11";
 
 =head1 NAME
 
-File::Lock - Utility to lock and unlock files.
+File::TinyLock - Utility to lock and unlock files.
 
 =head1 SYNOPSIS
 
-use File::Lock;
+use File::TinyLock;
 
-my $result = File::Lock::lock($file);
-my $result = File::Lock::lock(file    => $file
+my $result = File::TinyLock::lock($file);
+my $result = File::TinyLock::lock(file    => $file
                               timeout => 10,
                               debug   => 0);
 
-my $result = File::Lock::unlock($file);
-my $result = File::Lock::unlock(file    => $file);
+my $result = File::TinyLock::unlock($file);
+my $result = File::TinyLock::unlock(file    => $file);
 
-my $result = File::Lock::check($file);
-my $result = File::Lock::check(file    => $file);
+my $result = File::TinyLock::check($file);
+my $result = File::TinyLock::check(file    => $file);
 	
 =head1 DESCRIPTION
 
-C<File::Lock> provides a C<lock>, C<unlock>, and C<check> function for
+C<File::TinyLock> provides a C<lock>, C<unlock>, and C<check> function for
 working with file locks.
 
 =head1 CONSTRUCTOR
 
 =over 4
 
-=item Lock( [FILE] [,OPTIONS] );
+=item lock( [FILE] [,OPTIONS] );
 
 If C<FILE> is not given, then it may instead be passed as the C<file>
 option described below.
@@ -89,13 +89,13 @@ Here are a list of return codes of the C<lock> function and what they mean:
 
 =head1 EXAMPLES
 
-  use File::Lock;
+  use File::TinyLock;
   my $file = shift;
   unless(defined($file)){
     print "file to lock: ";
     chop($file=<STDIN>);
   }
-  my $result = File::Lock::lock($file);
+  my $result = File::TinyLock::lock($file);
   if($result){
     print "Could not lock: ${result}\n";
   }else{
@@ -104,7 +104,7 @@ Here are a list of return codes of the C<lock> function and what they mean:
 	
 	# do stuff to file
 
-  if($result = File::Lock::unlock($file)){
+  if($result = File::TinyLock::unlock($file)){
     print "could not unlock $file: $result\n";
   }
   exit;
@@ -113,11 +113,11 @@ Here are a list of return codes of the C<lock> function and what they mean:
 =head1 CAVEATS
 
 This utility must be used by all code that works with the file you're
-trying to lock.  Locking with C<File::Lock> will not keep someone
+trying to lock.  Locking with C<File::TinyLock> will not keep someone
 from using vi and editing the file.
 
 If you leave lock files around (from not unlocking the file before
-your code exits), C<File::Lock> will try its best to determine if the
+your code exits), C<File::TinyLock> will try its best to determine if the
 lock files are stale or not.  This is best effort, and may yield
 false positives.  For example, if your code was running as pid 1234
 and exited without unlocking, stale detection may fail if there is
@@ -137,11 +137,11 @@ lock file -> do stuff -> unlock file -> exit;
 
 =cut
 
-package File::Lock;
+package File::TinyLock;
 
 use strict;
 
-sub Version { $File::Lock::VERSION }
+sub Version { $File::TinyLock::VERSION }
 
 sub check {
 	my %arg;
@@ -194,7 +194,7 @@ sub unlock {
 		$dir = $1;
 	}
 
-	if(my $x = File::Lock::check($fqfile)){
+	if(my $x = File::TinyLock::check($fqfile)){
 		warn "cannot unlock: $x\n" if($arg{debug} == 1);
 		return 1;
 	}else{
