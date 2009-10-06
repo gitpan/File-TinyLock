@@ -1,135 +1,110 @@
 # File::TinyLock.pm
-# $Id: TinyLock.pm,v 0.11 2006/04/06 16:53:32 jkister Exp $
-# Copyright (c) 2006 Jeremy Kister.
+# $Id: TinyLock.pm,v 1.00 2009/10/05 08:17:29 jkister Exp $
+# Copyright (c) 2006-2009 Jeremy Kister.
 # Released under Perl's Artistic License.
-
-$File::TinyLock::VERSION = "0.11";
 
 =head1 NAME
 
-File::TinyLock - Utility to lock and unlock files.
+File::TinyLock - Utility for process locking and unlocking.
 
 =head1 SYNOPSIS
 
 use File::TinyLock;
 
-my $result = File::TinyLock::lock($file);
-my $result = File::TinyLock::lock(file    => $file
-                              timeout => 10,
-                              debug   => 0);
-
-my $result = File::TinyLock::unlock($file);
-my $result = File::TinyLock::unlock(file    => $file);
-
-my $result = File::TinyLock::check($file);
-my $result = File::TinyLock::check(file    => $file);
-	
+my $locksmith = File::TinyLock->new(lock => $LOCK);
+if( $locksmith->lock() ){
+	warn "we have locked\n";
+	$locksmith->unlock();
+	warn "we have unlocked\n";
+}else{
+	warn "could not lock..\n";
+}
+												
 =head1 DESCRIPTION
 
-C<File::TinyLock> provides a C<lock>, C<unlock>, and C<check> function for
-working with file locks.
+C<File::TinyLock> provides C<lock>, C<unlock>, and C<checklock> methods for
+working with process locking.  This utility attempts to be useful when you
+require one of a process to be running at a time, but someone could possibly
+try to spawn off a second (such as having a crontab where you are *hoping*
+one job ends before the next starts).
 
 =head1 CONSTRUCTOR
 
 =over 4
 
-=item lock( [FILE] [,OPTIONS] );
+=item lock( [LOCK] [,OPTIONS] );
 
-If C<FILE> is not given, then it may instead be passed as the C<file>
-option described below.
+C<LOCK> is a mandatory lock file.
 
 C<OPTIONS> are passed in a hash like fashion, using key and value
 pairs.  Possible options are:
 
-B<file> - The file to lock
+B<mylock>  - Unique file to identify our process (Default: auto-generated)
+           - *must* be on the same filesystem as <LOCK>
 
-B<timeout> - Number of seconds to continue trying to lock (Default: 10).
+B<retries> - Number of times to retry getting a lock (Default: 5)
 
-B<debug> - Print debugging info to STDERR (0=Off, 1=On).
+B<retrydelay> - Number of seconds to wait between retries (Default: 60)
+
+B<debug> - Print debugging info to STDERR (0=Off, 1=On) (Default: 0).
 
 =head1 RETURN VALUE
 
 Here are a list of return codes of the C<lock> function and what they mean:
 
-=item 0 The file is locked.
+=item 0 The process could not get a lock.
 
-=item 1 The file is not found.
+=item 1 The process has obtained a lock. 
 
-=item 2 Master lock exists and is not writable
+.. and for the C<checklock> function:
 
-=item 3 Could not unlink stale master lock
+=item 0 The process does not have a lock.
 
-=item 4 Could not fork ps
-
-=item 5 Could not read master lock
-
-=item 6 Could not write to temporary lock
-
-=item 7 The file is already locked.
-
-
-.. and for the C<check> function:
-
-=item 0 File is locked
-
-=item 1 File is not locked
-
-=item 2 permissions problems with lock files
+=item 1 The process has a lock.
 
 .. and the C<unlock> function:
 
-=item 0 File unlocked.
-
-=item 1 Couldnt unlock file
-
-=item 2 Couldnt unlink master lock
-
-=item 3 Couldnt unlink temporary lock
-
+=item Note: method will die if we cannot modify <LOCK>
 
 =head1 EXAMPLES
 
+  # run the below code twice ( e.g. perl ./test.pl & ; perl ./test.pl )
+
+  use strict;
   use File::TinyLock;
-  my $file = shift;
-  unless(defined($file)){
-    print "file to lock: ";
-    chop($file=<STDIN>);
-  }
-  my $result = File::TinyLock::lock($file);
+
+  my $lock = '/tmp/testing.lock';
+  my $locksmith = File::TinyLock->new(lock => $lock, debug => 1);
+
+  my $result = $locksmith->lock();
   if($result){
-    print "Could not lock: ${result}\n";
-  }else{
-    print "$file is now locked\n";
+    print "We have obtained a lock\n";
   }
 	
-	# do stuff to file
+	# do stuff 
 
-  if($result = File::TinyLock::unlock($file)){
-    print "could not unlock $file: $result\n";
-  }
+  sleep 30;
+
+  $locksmith->unlock();
   exit;
 
 
 =head1 CAVEATS
 
-This utility must be used by all code that works with the file you're
-trying to lock.  Locking with C<File::TinyLock> will not keep someone
-from using vi and editing the file.
-
 If you leave lock files around (from not unlocking the file before
-your code exits), C<File::TinyLock> will try its best to determine if the
-lock files are stale or not.  This is best effort, and may yield
-false positives.  For example, if your code was running as pid 1234
-and exited without unlocking, stale detection may fail if there is
-a new process running with pid 1234.
+your code exits), C<File::TinyLock> will try its best to clean up
+and/or determine if the lock files are stale or not.  This is best
+effort, and may yield false positives.  For example, if your code
+was running as pid 1234 and crashed without unlocking, stale
+detection may fail if there is a new process running with pid 1234.
 
 =head1 RESTRICTIONS
 
 Locking will only remain successfull while your code is active.  You
-can not lock a file, let your code exit, and expect the file to remain
-locked; doing so will result in stale lock files left behind.  
+can not lock, let your code exit, and start your code again - doing
+so will result in stale lock files left behind.  
 
-lock file -> do stuff -> unlock file -> exit;
+start code -> get lock -> do stuff -> unlock -> exit;
 
 =head1 AUTHOR
 
@@ -140,177 +115,158 @@ lock file -> do stuff -> unlock file -> exit;
 package File::TinyLock;
 
 use strict;
+use warnings;
 
-sub Version { $File::TinyLock::VERSION }
+my %_mylocks;
 
-sub check {
-	my %arg;
-	if(@_ % 2){
-		my $file = shift;
-		%arg = @_;
-		$arg{file} = $file;
-	}else{
-		%arg = @_;
-	}
-	my $fqfile = $arg{file};
+our ($VERSION) = q$Revision: 1.0 $ =~ /(\d+\.\d+)/;
 
-	return 1 unless(-f $fqfile);
+sub new {
+    my $class = shift;
+    my %args;
+    if(@_ % 2){
+        my $lock = shift;
+        %args = @_;
+        $args{lock} = $lock;
+    }else{
+        %args = @_;
+    }
 
-	my ($file) = $fqfile =~ /([^\/]+)$/;
-	my $dir = '.';
-	if($fqfile =~ /^(.+)\/[^\/]+$/){
-		$dir = $1;
-	}
-	if(-f "${dir}/${file}.lock"){
-		if(open(LOCK, "${dir}/${file}.lock")){
-			my $pid = <LOCK>;
-			close LOCK;
-			return 0 if(-f "${dir}/${file}.lock.${pid}"); # locked, maybe stale
-		}else{
-			warn "could not read $dir/$file.lock: $!\n" if($arg{debug} == 1);
-			return 2;
-		}
-	}
+    die "$class: must specify lock\n" unless($args{lock});
 
-	return 1; # not locked
-}
+    my $self = bless(\%args, $class);
 
-sub unlock {
-	my %arg;
-	if(@_ % 2){
-		my $file = shift;
-		%arg = @_;
-		$arg{file} = $file;
-	}else{
-		%arg = @_;
-	}
-	my $fqfile = $arg{file};
+    $self->{class}        = $class;
+    $self->{retries}      = 5  unless(defined($args{retries}));
+    $self->{retrydelay}   = 60 unless(defined($args{retrydelay}));
+    $self->{_have_lock}   = 0;
 
-	return 1 unless(-f $fqfile);
+    if( $self->{mylock} ){
+        # must be on the same filesystem as {lock}
+        if($self->{lock} eq $self->{mylock}){
+            die "$class: lock and mylock may not be the same file\n";
+        }elsif( $_mylocks{ $self->{mylock} } ){
+            die "$class: already using mylock of $self->{mylock}\n";
+        }elsif( -f $self->{mylock} ){
+            die "$class: $self->{mylock} already exists\n";
+        }
+    }else{
+        # generate mylock - we could be used several times in the same code
+        for my $i (0 .. 10_000){ # could do while(1)...
+            my $mylock = $self->{lock} . $i . $$;
+            unless( $_mylocks{ $mylock } || -f $mylock ){
+                $self->{mylock} = $mylock;
+                last;
+            }
+        }
+        die "$class: couldnt generate mylock: 10,000 found!\n" unless( $self->{mylock} );
+    }
+    $_mylocks{ $self->{mylock} } = 1;
 
-	my ($file) = $fqfile =~ /([^\/]+)$/;
-	my $dir = '.';
-	if($fqfile =~ /^(.+)\/[^\/]+$/){
-		$dir = $1;
-	}
-
-	if(my $x = File::TinyLock::check($fqfile)){
-		warn "cannot unlock: $x\n" if($arg{debug} == 1);
-		return 1;
-	}else{
-		if(unlink("${dir}/${file}.lock.$$")){
-			if(unlink("${dir}/${file}.lock")){
-				return 0; # unlocked
-			}else{
-				warn "could not unlink ${dir}/${file}.lock: $!\n" if($arg{debug} == 1);
-				return 2; #
-			}
-		}else{
-			warn "could not unlink ${dir}/${file}.lock.$$: $!\n" if($arg{debug} == 1);
-			return 3;
-		}
-	}
+    return($self);
 }
 
 sub lock {
-	my %arg;
-	if(@_ % 2){
-		my $file = shift;
-		%arg = @_;
-		$arg{file} = $file;
-	}else{
-		%arg = @_;
-	}
-	my $fqfile = $arg{file};
-	if(exists($arg{timeout})){
-		warn "using timeout of $arg{timeout} seconds\n" if($arg{debug} == 1);
-	}else{
-		$arg{timeout} = 10;
-		warn "using default timeout of 10 seconds\n" if($arg{debug} == 1);
-	}
+    my $self = shift;
 
-	return 1 unless(-f $fqfile);
+    $SIG{HUP} = $SIG{QUIT} = $SIG{INT} = $SIG{TERM} = sub { $self->_debug( "caught SIG$_[0]" ); exit; };
 
-	my ($file) = $fqfile =~ /([^\/]+)$/;
-	my $dir = '.';
-	if($fqfile =~ /^(.+)\/[^\/]+$/){
-		$dir = $1;
-	}
-	if(-f "${dir}/${file}.lock"){
-		unless(-w "${dir}/${file}.lock"){
-			warn "cannot write to $dir/$file.lock: $!\n" if($arg{debug} == 1);
-			return 2;
-		}
-	}
-	my $pid;
-	if(open(LOCK, ">${dir}/${file}.lock.$$")){
-		print LOCK $$;
-		close LOCK;
+    if( open( my $fh, '>', $self->{mylock} ) ){
+        print $fh "$$:$self->{mylock}\n";
+        close $fh;
 
-		for(my $n=0; $n <= $arg{timeout}; $n++){
-			if(link("${dir}/${file}.lock.$$","${dir}/${file}.lock")){
-				return 0; # locked.
-			}else{
-				# could not lock; find out why.
-				if(open(CUR, "${dir}/${file}.lock")){
-					$pid = <CUR>;
-					close CUR;
+        for my $try (0 .. $self->{retries}){
+            unless( $self->checklock() ){
+                if( link($self->{mylock}, $self->{lock}) ){
+                    $self->{_have_lock} = 1;
+                    $self->_debug( "got lock." );
+                    return 1;
+                }
+            }
+            if($self->{retries} && ($try != $self->{retries})){
+                $self->_debug( "retrying in $self->{retrydelay} seconds" );
+                sleep $self->{retrydelay} unless($try == $self->{retries});
+            }
+        }
+    }else{
+        $self->_warn( "could not write to $self->{mylock}: $!" );
+    }
+    $self->_warn( "could not get lock" );
+    unlink( $self->{mylock} );
+    return 0;
+}
 
-					# could be a stale lock + a pid for a different prog QQQ
-					if(open(SYS, "ps -p $pid |")){
-						my $sys;
-						while(<SYS>){
-							if(/^\s*${pid}\s+/){
-								$sys=1;
-								last; # lock is current;
-							}
-						}
-						unless($sys){
-							# lock is stale;
-							if(unlink("${dir}/${file}.lock")){
-								warn "stale lock found with pid: $pid\n" if($arg{debug} == 1);
-								next; # loop, try again.
-							}else{
-								unless(unlink("${dir}/${file}.lock.$$")){
-									warn "could not unlink lock.$$: $!\n" if($arg{debug} == 1);
-								}
-								warn "could not unlink stale lock at ${dir}/${file}.lock: $!\n" if($arg{debug} == 1);
-								return 3;
-							}
-						}
-					}else{
-						unless(unlink("${dir}/${file}.lock.$$")){
-							warn "could not unlink lock.$$: $!\n" if($arg{debug} == 1);
-						}
-						warn "cannot fork ps -f: $!\n" if($arg{debug} == 1);
-						return 4;
-					}
-				}else{
-					unless(unlink("${dir}/${file}.lock.$$")){
-						warn "could not unlink lock.$$: $!\n" if($arg{debug} == 1);
-					}
-					warn "could not open $dir/$file.lock: $!\n" if($arg{debug});
-					return 5;
-				}
-			}
-			sleep 1; # if link failed
-		}
-	}else{
-		unless(unlink("${dir}/${file}.lock.$$")){
-			warn "could not unlink lock.$$: $!\n" if($arg{debug} == 1);
-		}
-		warn "could not write to $dir/$file.lock.$$: $!\n" if($arg{debug} == 1);
-		return 6;
-	}
+sub checklock {
+    my $self = shift;
+    
+    if( open(my $fh, $self->{lock}) ){
+        chomp(my $line = <$fh>);
+        close $fh;
+        my($pid,$mylock) = split(/:/, $line, 2);
 
-	unless($$ == $pid){
-		# dont want to unlink tmp lock if we're the one who put it there
-		# (from calling lock twice in same code)
-		unless(unlink("${dir}/${file}.lock.$$")){
-			warn "could not unlink lock.$$: $!\n" if($arg{debug} == 1);
-		}
-	}
-	return 7; # file already locked
+        $self->_debug( "found $pid in $self->{lock}" );
+        if( open(my $ps, "ps -e |") ){
+            my $stale = 1;
+            while(<$ps>){
+                if(/^\s+${pid}\s+/){
+                    $stale = 0;
+                    $self->_debug( "found $pid is running" );
+                    last;
+                }
+            }
+            close $ps;
+
+            if($stale){
+                unlink($mylock) || $self->_warn( "could not unlink $mylock: $!" );
+                unlink($self->{lock}) || die "could not unlink $self->{lock}: $!";
+                $self->_debug( "found and cleaned stale lock." );
+            }else{
+                $self->_debug( "found valid existing lock." );
+                return 1;
+            }
+
+        }else{
+            $self->_warn( "cannot tell if lock is stale - could not fork ps: $!" );
+        }
+    }else{
+        $self->_debug( "could not read $self->{lock}: $!" );
+    }
+    return 0;
+}
+
+
+sub unlock {
+    my $self = shift;
+
+    if( -f $self->{mylock} ){
+        unlink($self->{mylock}) || $self->_warn( "cannot unlink mylock ( $self->{mylock} ): $!" );
+    }
+
+    if($self->{_have_lock}){
+        unlink($self->{lock}) || die "cannot unlink lock ( $self->{lock} ): $!\n";
+        $self->{_have_lock} = 0;
+    }
+}
+
+sub _warn {
+    my $self = shift;
+    my $msg = join('', @_);
+
+    warn "$self->{class}: $msg\n";
+}
+
+sub _debug {
+    my $self = shift;
+
+    $self->_warn(@_) if($self->{debug});
+}
+
+sub DESTROY {
+    my $self = shift;
+
+    $self->_debug( "cleaning up.." );
+    $self->unlock();
+
 }
 
 1;

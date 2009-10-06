@@ -3,44 +3,60 @@
 use strict;
 use File::TinyLock;
 
-my $version = File::TinyLock::Version();
-print "testing File::TinyLock v${version}\n";
-
 print "Testing locking code...\n";
-my $n = 1;
-while($n < 3){
-	print "Attempting lock [$n/2]\n";
-	my $result = File::TinyLock::lock(file => 'test.pl', timeout => 2, debug => 0);
-	if($result) {
-		print "file could not be locked - result code: $result -- this is ";
-		if($n == 1){
-			print "bad\n";
-			exit 1;
-		}else{
-			print "good\n";
-		}
-	}else{
-		print "file locked -- this is ";
-		if($n == 1){
-			print "good\n";
-		}else{
-			print "bad\n";
-			exit 1;
-		}
-	}
-	$n++;
-}
-if(my $result = File::TinyLock::check('test.pl')){
-	print "file not locked, error: $result\n";
-	exit 1;
-}else{
-	print "Status: file is locked\n";
+
+print "using File::TinyLock v$File::TinyLock::VERSION\n";
+
+my $LOCK    = '/tmp/test.lock';
+my $MYLOCK1 = "/tmp/test.$$.lock1";
+my $MYLOCK2 = "/tmp/test.$$.lock2";
+
+my @errors;
+
+my $lock = File::TinyLock->new(lock    => $LOCK,
+                               mylock  => $MYLOCK1,
+                               debug   => 1,
+                               retrydelay => 2,
+                        );
+
+my $result = $lock->lock();
+unless($result == 1){
+    $lock->unlock();
+    push @errors, "could not lock";
 }
 
-if(my $result = File::TinyLock::unlock('test.pl')){
-	print "could not unlock file: $result\n";
-	exit 1;
-}else{
-	print "file unlocked\n";
+open(LOCK, $LOCK) || die "could not open $LOCK: $!\n";
+chomp(my $line = <LOCK>);
+close LOCK;
+my($pid,$mylock) = split /:/, $line;
+
+push @errors, "pid not found in $LOCK" unless($pid eq $$);
+push @errors, "mylock not found" unless(-s $mylock);
+
+
+my $locka = File::TinyLock->new(lock     => $LOCK,
+                                mylock   => $MYLOCK2,
+                                retries  => 2,
+                                retrydelay => 2,
+                                debug    => 1,
+                         );
+my $res = $locka->lock(); # SHOULD FAIL!
+if($res){
+    push @errors, "was able to lock twice";
+    $locka->_unlock();
 }
-print "all tests completed sucessfully.\n"
+
+$lock->unlock();
+
+push @errors, "$LOCK still exists" if( -f $LOCK );
+push @errors, "$MYLOCK1 still exists" if( -f $MYLOCK1 );
+push @errors, "$MYLOCK2 still exists" if( -f $MYLOCK2 );
+
+if(@errors){
+    foreach my $err (@errors){
+        print "ERROR: $err\n";
+    }
+    die "too many errors\n";
+}else{
+	print "all tests completed sucessfully.\n"
+}
