@@ -43,7 +43,7 @@ my $locka = File::TinyLock->new(lock     => $LOCK,
 my $res = $locka->lock(); # SHOULD FAIL!
 if($res){
     push @errors, "was able to lock twice";
-    $locka->_unlock();
+    $locka->unlock();
 }
 
 $lock->unlock();

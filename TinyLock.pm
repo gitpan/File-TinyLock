@@ -1,6 +1,6 @@
 # File::TinyLock.pm
-# $Id: TinyLock.pm,v 1.00 2009/10/05 08:17:29 jkister Exp $
-# Copyright (c) 2006-2009 Jeremy Kister.
+# $Id: TinyLock.pm,v 1.1 2010/01/21 14:44:16 jkister Exp $
+# Copyright (c) 2006-2010 Jeremy Kister.
 # Released under Perl's Artistic License.
 
 =head1 NAME
@@ -10,6 +10,8 @@ File::TinyLock - Utility for process locking and unlocking.
 =head1 SYNOPSIS
 
 use File::TinyLock;
+
+my $LOCK = '/tmp/testing.lock';
 
 my $locksmith = File::TinyLock->new(lock => $LOCK);
 if( $locksmith->lock() ){
@@ -119,7 +121,7 @@ use warnings;
 
 my %_mylocks;
 
-our ($VERSION) = q$Revision: 1.0 $ =~ /(\d+\.\d+)/;
+our ($VERSION) = q$Revision: 1.1 $ =~ /(\d+\.\d+)/;
 
 sub new {
     my $class = shift;
@@ -208,7 +210,7 @@ sub checklock {
         if( open(my $ps, "ps -e |") ){
             my $stale = 1;
             while(<$ps>){
-                if(/^\s+${pid}\s+/){
+                if(/^\s*${pid}\s*/){
                     $stale = 0;
                     $self->_debug( "found $pid is running" );
                     last;

@@ -1,4 +1,4 @@
-File::TinyLock version 1.0
+File::TinyLock version 1.1
 =======================
 
 File::TinyLock provides a lock function for process locking 
@@ -21,7 +21,7 @@ none
 
 COPYRIGHT AND LICENCE
 
-	Copyright (C) 2006-2009 Jeremy Kister.
+	Copyright (C) 2006-2010 Jeremy Kister.
 
 	This software may be copied and distributed under the terms
 	found in the Perl "Artistic License".
