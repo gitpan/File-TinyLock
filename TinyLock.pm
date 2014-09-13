@@ -1,6 +1,6 @@
 # File::TinyLock.pm
-# $Id: TinyLock.pm,v 1.1 2010/01/21 14:44:16 jkister Exp $
-# Copyright (c) 2006-2010 Jeremy Kister.
+# $Id: TinyLock.pm,v 1.11 2014/09/12 20:15:33 jkister Exp $
+# Copyright (c) 2006-2014 Jeremy Kister.
 # Released under Perl's Artistic License.
 
 =head1 NAME
@@ -121,7 +121,7 @@ use warnings;
 
 my %_mylocks;
 
-our ($VERSION) = q$Revision: 1.1 $ =~ /(\d+\.\d+)/;
+our ($VERSION) = q$Revision: 1.11 $ =~ /(\d+\.\d+)/;
 
 sub new {
     my $class = shift;
@@ -135,6 +135,7 @@ sub new {
     }
 
     die "$class: must specify lock\n" unless($args{lock});
+    $ENV{PATH} .= '/bin:/usr/bin';
 
     my $self = bless(\%args, $class);
 
