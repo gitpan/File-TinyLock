@@ -1,4 +1,4 @@
-File::TinyLock version 1.11
+File::TinyLock version 1.20
 =======================
 
 File::TinyLock provides a lock function for process locking 

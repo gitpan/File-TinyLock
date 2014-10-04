@@ -1,5 +1,5 @@
 # File::TinyLock.pm
-# $Id: TinyLock.pm,v 1.11 2014/09/12 20:15:33 jkister Exp $
+# $Id: TinyLock.pm,v 1.20 2014/10/03 22:15:41 jkister Exp $
 # Copyright (c) 2006-2014 Jeremy Kister.
 # Released under Perl's Artistic License.
 
@@ -9,18 +9,18 @@ File::TinyLock - Utility for process locking and unlocking.
 
 =head1 SYNOPSIS
 
-use File::TinyLock;
+  use File::TinyLock;
 
-my $LOCK = '/tmp/testing.lock';
+  my $LOCK = '/tmp/testing.lock';
 
-my $locksmith = File::TinyLock->new(lock => $LOCK);
-if( $locksmith->lock() ){
-	warn "we have locked\n";
-	$locksmith->unlock();
-	warn "we have unlocked\n";
-}else{
-	warn "could not lock..\n";
-}
+  my $locksmith = File::TinyLock->new(lock => $LOCK);
+  if( $locksmith->lock() ){
+    warn "we have locked\n";
+    $locksmith->unlock();
+    warn "we have unlocked\n";
+  }else{
+    warn "could not lock..\n";
+  }
 												
 =head1 DESCRIPTION
 
@@ -121,7 +121,7 @@ use warnings;
 
 my %_mylocks;
 
-our ($VERSION) = q$Revision: 1.11 $ =~ /(\d+\.\d+)/;
+our ($VERSION) = q$Revision: 1.20 $ =~ /(\d+\.\d+)/;
 
 sub new {
     my $class = shift;
@@ -135,7 +135,6 @@ sub new {
     }
 
     die "$class: must specify lock\n" unless($args{lock});
-    $ENV{PATH} .= '/bin:/usr/bin';
 
     my $self = bless(\%args, $class);
 
@@ -207,30 +206,21 @@ sub checklock {
         close $fh;
         my($pid,$mylock) = split(/:/, $line, 2);
 
+        $mylock ||= $self->{lock};
+
         $self->_debug( "found $pid in $self->{lock}" );
-        if( open(my $ps, "ps -e |") ){
-            my $stale = 1;
-            while(<$ps>){
-                if(/^\s*${pid}\s*/){
-                    $stale = 0;
-                    $self->_debug( "found $pid is running" );
-                    last;
-                }
-            }
-            close $ps;
 
-            if($stale){
-                unlink($mylock) || $self->_warn( "could not unlink $mylock: $!" );
-                unlink($self->{lock}) || die "could not unlink $self->{lock}: $!";
-                $self->_debug( "found and cleaned stale lock." );
-            }else{
-                $self->_debug( "found valid existing lock." );
-                return 1;
-            }
-
+        if( kill(0, $pid) ){
+            $self->_debug( "found valid existing lock for pid: $pid" );
+            return 1;
         }else{
-            $self->_warn( "cannot tell if lock is stale - could not fork ps: $!" );
+            unless( $self->{lock} eq $mylock ){
+                unlink($mylock) || $self->_warn( "could not unlink $mylock: $!" );
+            }
+            unlink($self->{lock}) || die "could not unlink $self->{lock}: $!";
+            $self->_debug( "found and cleaned stale lock." );
         }
+
     }else{
         $self->_debug( "could not read $self->{lock}: $!" );
     }
@@ -249,6 +239,10 @@ sub unlock {
         unlink($self->{lock}) || die "cannot unlink lock ( $self->{lock} ): $!\n";
         $self->{_have_lock} = 0;
     }
+}
+
+sub _version {
+    $File::TinyLock::VERSION;
 }
 
 sub _warn {

@@ -4,4 +4,4 @@ MANIFEST
 Makefile.PL
 README
 TinyLock.pm
-test.pl
+t/main.t
